@@ -59,6 +59,19 @@ def extract_pdf_text(file_bytes: bytes) -> str:
     return "\n".join(text_chunks)
 
 
+def extract_excel_text(file_bytes: bytes) -> str:
+    import pandas as pd
+    sheets = pd.read_excel(io.BytesIO(file_bytes), sheet_name=None, header=None, dtype=str)
+    text_chunks = []
+    for sheet_name, df in sheets.items():
+        text_chunks.append(f"[Sheet: {sheet_name}]")
+        for _, row in df.iterrows():
+            cells = [str(c) for c in row.tolist() if c is not None and str(c) != "nan"]
+            if cells:
+                text_chunks.append(" ".join(cells))
+    return "\n".join(text_chunks)
+
+
 # ---------- Claude-based structuring ----------
 
 PARSE_PROMPT = """다음은 영어 단어책 PDF에서 추출한 텍스트입니다.
@@ -217,9 +230,17 @@ async def index():
 @app.post("/api/parse")
 async def api_parse(file: UploadFile = File(...)):
     file_bytes = await file.read()
-    raw_text = extract_pdf_text(file_bytes)
+    filename = (file.filename or "").lower()
+
+    if filename.endswith((".xlsx", ".xls")):
+        raw_text = extract_excel_text(file_bytes)
+    elif filename.endswith(".pdf"):
+        raw_text = extract_pdf_text(file_bytes)
+    else:
+        raise HTTPException(status_code=400, detail="PDF 또는 엑셀(.xlsx, .xls) 파일만 업로드할 수 있습니다.")
+
     if not raw_text.strip():
-        raise HTTPException(status_code=400, detail="PDF에서 텍스트를 추출하지 못했습니다.")
+        raise HTTPException(status_code=400, detail="파일에서 텍스트를 추출하지 못했습니다.")
     data = parse_vocab_with_claude(raw_text)
     return JSONResponse(data)
 
