@@ -40,7 +40,7 @@ fileInput.addEventListener("change", async () => {
     uploadStatus.textContent = `${parsedUnits.length}개 유닛을 찾았어요.`;
     optionsCard.style.display = "block";
   } catch (e) {
-    uploadLabel.textContent = "📄 단어책 PDF 업로드";
+    uploadLabel.textContent = "📄 단어책 PDF / 엑셀 업로드";
     uploadStatus.textContent = `❌ 오류: ${e.message}`;
   }
 });
