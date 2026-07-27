@@ -1,4 +1,4 @@
-FROM python:3.11-slim
+FROM python:3.11-slim-bookworm
 
 # WeasyPrint system dependencies + Korean font (fonts-noto-cjk provides Noto Sans/Serif CJK KR)
 RUN apt-get update && apt-get install -y --no-install-recommends \
