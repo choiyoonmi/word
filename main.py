@@ -20,6 +20,11 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY")
 
 
+@app.exception_handler(Exception)
+async def all_exceptions_handler(request, exc):
+    return JSONResponse(status_code=500, content={"detail": f"서버 오류: {str(exc)}"})
+
+
 # ---------- Data models ----------
 
 class WordItem(BaseModel):
@@ -89,11 +94,19 @@ def parse_vocab_with_claude(raw_text: str) -> dict:
     content = raw_text[:60000]
     prompt = PARSE_PROMPT.replace("{content}", content)
 
-    resp = client.messages.create(
-        model="claude-sonnet-4-6",
-        max_tokens=8000,
-        messages=[{"role": "user", "content": prompt}],
-    )
+    try:
+        resp = client.messages.create(
+            model="claude-sonnet-4-6",
+            max_tokens=8000,
+            messages=[{"role": "user", "content": prompt}],
+        )
+    except anthropic.APIStatusError as e:
+        raise HTTPException(status_code=502, detail=f"Claude API 오류: {e.status_code} {e.message}")
+    except anthropic.APIConnectionError as e:
+        raise HTTPException(status_code=502, detail=f"Claude API 연결 실패: {str(e)}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"알 수 없는 오류: {str(e)}")
+
     text = "".join(b.text for b in resp.content if b.type == "text")
     text = text.strip()
     text = re.sub(r"^```json\s*|\s*```$", "", text.strip())
