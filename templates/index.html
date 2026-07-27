@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>단어시험지 생성기</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <div class="wrap">
+    <h1>📝 단어시험지 생성기</h1>
+    <p class="sub">단어책 PDF를 업로드하면 유닛별 단어시험지를 PDF로 만들어드려요.</p>
+
+    <div class="card" id="upload-card">
+      <label class="upload-box" id="upload-box">
+        <input type="file" id="file-input" accept="application/pdf" hidden>
+        <span id="upload-label">📄 단어책 PDF 업로드</span>
+      </label>
+      <div id="upload-status"></div>
+    </div>
+
+    <div class="card" id="options-card" style="display:none;">
+      <h2>학원 정보</h2>
+      <label>학원명 (로고 자리에 두 줄로 표시됩니다)</label>
+      <input type="text" id="academy-name" placeholder="예: 해피트리학원 국영수문해력센터" value="해피트리학원 국영수문해력센터">
+
+      <label>교재 이름</label>
+      <input type="text" id="book-title" placeholder="예: Word Up 1200 Vocabulary Lists">
+
+      <h2>유닛 선택</h2>
+      <select id="unit-select"></select>
+
+      <h2>옵션</h2>
+      <label><input type="checkbox" id="shuffle-check"> 단어 순서 랜덤 섞기</label>
+      <label>
+        <select id="direction-select">
+          <option value="kor_to_eng">한글 뜻 → 영어 단어 쓰기 (기본)</option>
+          <option value="eng_to_kor">영어 단어 → 한글 뜻 쓰기</option>
+        </select>
+      </label>
+
+      <button id="generate-btn">📥 시험지 PDF 만들기</button>
+    </div>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
