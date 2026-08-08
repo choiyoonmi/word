@@ -195,10 +195,10 @@ body {{ font-family: "Noto Sans CJK KR", sans-serif; color: #1a1a1a; margin: 0; 
 .name-box {{ width: 50mm; padding: 4mm 5mm; border-left: 1.5pt solid #1a1a1a; font-size: 11pt; }}
 .columns {{ display: flex; gap: 12mm; }}
 .col {{ flex: 1; }}
-.row {{ display: flex; align-items: flex-end; min-height: 18.5mm; padding-bottom: 1.5mm; }}
-.num {{ width: 8mm; font-size: 13pt; font-weight: 700; color: #333; padding-bottom: 1.5mm; }}
-.hint {{ width: 34mm; font-size: 13pt; padding-bottom: 1.5mm; line-height: 1.3; }}
-.answer-line {{ flex: 1; border-bottom: 1.3pt solid #333; margin-left: 4mm; height: 13mm; }}
+.row {{ display: flex; align-items: flex-end; min-height: var(--rowh, 18.5mm); padding-bottom: 1.5mm; }}
+.num {{ width: 8mm; font-size: var(--fs, 13pt); font-weight: 700; color: #333; padding-bottom: 1.5mm; }}
+.hint {{ width: 34mm; font-size: var(--fs, 13pt); padding-bottom: 1.5mm; line-height: 1.25; }}
+.answer-line {{ flex: 1; border-bottom: 1.3pt solid #333; margin-left: 4mm; height: var(--ansh, 13mm); }}
 .footer {{ margin-top: 3mm; font-size: 8pt; color: #999; text-align: right; }}
 </style>
 </head>
@@ -207,7 +207,7 @@ body {{ font-family: "Noto Sans CJK KR", sans-serif; color: #1a1a1a; margin: 0; 
 """
 
 SECTION_TEMPLATE = """
-<div class="sheet">
+<div class="sheet" style="--rowh: {rowh}mm; --fs: {fs}pt; --ansh: {ansh}mm;">
   <div class="header">
     <div class="logo-box">{academy_line1}<br>{academy_line2}</div>
     <div class="title-box">
@@ -232,6 +232,22 @@ def split_academy_name(name: str):
     return name, ""
 
 
+def fit_metrics(n_words: int):
+    """단어 수에 맞춰 한 유닛이 A4 한 장에 들어가도록 줄높이/글자/답란높이를 계산.
+    2단 배치라 한 단(칼럼)의 줄 수 = ceil(n/2). 헤더를 뺀 세로 예산 안에 맞춘다.
+    단어가 적으면 기본 크기(18.5mm/13pt), 많아질수록 자동 축소(최소 6.5mm/8pt).
+    """
+    rows_per_col = max(1, (n_words + 1) // 2)
+    budget_mm = 235.0  # 헤더 제외, 한 칼럼에 쓸 수 있는 세로 높이(A4 기준 여유값)
+    rowh = min(18.5, budget_mm / rows_per_col)
+    rowh = max(6.5, rowh)
+    # 글자 크기: rowh 18.5mm→13pt, 6.5mm→8pt 사이 선형 보간
+    fs = 8.0 + (rowh - 6.5) / (18.5 - 6.5) * (13.0 - 8.0)
+    fs = max(8.0, min(13.0, fs))
+    ansh = max(4.0, rowh - 5.5)  # 답 쓰는 줄 높이
+    return round(rowh, 1), round(fs, 1), round(ansh, 1)
+
+
 def build_section(academy_name, book_title, unit_title, words, shuffle, direction) -> str:
     """유닛 하나의 시험지 HTML 섹션(A4 한 장)을 만든다."""
     words = [dict(w) for w in words]
@@ -250,8 +266,12 @@ def build_section(academy_name, book_title, unit_title, words, shuffle, directio
     right_html = "".join(ROW_TEMPLATE.format(no=w["no"], hint=hint_of(w)) for w in right)
 
     line1, line2 = split_academy_name(academy_name)
+    rowh, fs, ansh = fit_metrics(len(words))
 
     return SECTION_TEMPLATE.format(
+        rowh=rowh,
+        fs=fs,
+        ansh=ansh,
         academy_line1=line1,
         academy_line2=line2,
         book_title=book_title,
