@@ -29,6 +29,13 @@ fileInput.addEventListener("change", async () => {
     parsedUnits = data.units;
 
     unitSelect.innerHTML = "";
+    if (parsedUnits.length > 1) {
+      const totalWords = parsedUnits.reduce((s, u) => s + u.words.length, 0);
+      const allOpt = document.createElement("option");
+      allOpt.value = "all";
+      allOpt.textContent = `📚 책 전체 (${parsedUnits.length}개 유닛 · ${totalWords}단어)`;
+      unitSelect.appendChild(allOpt);
+    }
     parsedUnits.forEach((u, i) => {
       const opt = document.createElement("option");
       opt.value = i;
@@ -47,23 +54,30 @@ fileInput.addEventListener("change", async () => {
 
 generateBtn.addEventListener("click", async () => {
   if (!parsedUnits) return;
-  const idx = parseInt(unitSelect.value, 10);
-  const unit = parsedUnits[idx];
 
-  const payload = {
-    academy_name: document.getElementById("academy-name").value || "학원명",
-    book_title: bookTitleInput.value || "",
-    unit_title: unit.unit_title,
-    words: unit.words,
-    shuffle: document.getElementById("shuffle-check").checked,
-    direction: document.getElementById("direction-select").value,
-  };
+  const academyName = document.getElementById("academy-name").value || "학원명";
+  const bookTitle = bookTitleInput.value || "";
+  const shuffle = document.getElementById("shuffle-check").checked;
+  const direction = document.getElementById("direction-select").value;
+  const isAll = unitSelect.value === "all";
+
+  let endpoint, payload, filename;
+  if (isAll) {
+    endpoint = "/api/generate-all";
+    payload = { academy_name: academyName, book_title: bookTitle, units: parsedUnits, shuffle, direction };
+    filename = `${(bookTitle || "책전체").replace(/\s+/g, "_")}_전체_시험지.pdf`;
+  } else {
+    const unit = parsedUnits[parseInt(unitSelect.value, 10)];
+    endpoint = "/api/generate";
+    payload = { academy_name: academyName, book_title: bookTitle, unit_title: unit.unit_title, words: unit.words, shuffle, direction };
+    filename = `${unit.unit_title.replace(/\s+/g, "_")}_시험지.pdf`;
+  }
 
   generateBtn.disabled = true;
-  generateBtn.textContent = "생성 중...";
+  generateBtn.textContent = isAll ? "책 전체 생성 중... (조금 걸려요)" : "생성 중...";
 
   try {
-    const res = await fetch("/api/generate", {
+    const res = await fetch(endpoint, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -80,7 +94,7 @@ generateBtn.addEventListener("click", async () => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `${unit.unit_title.replace(/\s+/g, "_")}_시험지.pdf`;
+    a.download = filename;
     document.body.appendChild(a);
     a.click();
     a.remove();

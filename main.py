@@ -48,6 +48,14 @@ class GenerateRequest(BaseModel):
     direction: str = "kor_to_eng"  # or "eng_to_kor"
 
 
+class GenerateAllRequest(BaseModel):
+    academy_name: str = "학원명"
+    book_title: str = ""
+    units: List[UnitData]
+    shuffle: bool = False
+    direction: str = "kor_to_eng"  # or "eng_to_kor"
+
+
 # ---------- PDF text extraction ----------
 
 def extract_pdf_text(file_bytes: bytes) -> str:
@@ -158,7 +166,7 @@ ROW_TEMPLATE = """
 </div>
 """
 
-PAGE_TEMPLATE = """
+DOC_TEMPLATE = """
 <!DOCTYPE html>
 <html>
 <head>
@@ -166,6 +174,7 @@ PAGE_TEMPLATE = """
 <style>
 @page {{ size: A4; margin: 14mm 12mm; }}
 body {{ font-family: "Noto Sans CJK KR", sans-serif; color: #1a1a1a; margin: 0; }}
+.sheet + .sheet {{ page-break-before: always; }}
 .header {{ display: flex; align-items: center; border: 1.5pt solid #1a1a1a; margin-bottom: 8mm; }}
 .logo-box {{ width: 30mm; padding: 4mm; text-align: center; font-size: 9.5pt; font-weight: 600; color: #333; line-height: 1.3; border-right: 1.5pt solid #1a1a1a; }}
 .title-box {{ flex: 1; padding: 4mm 5mm; }}
@@ -181,7 +190,12 @@ body {{ font-family: "Noto Sans CJK KR", sans-serif; color: #1a1a1a; margin: 0; 
 .footer {{ margin-top: 3mm; font-size: 8pt; color: #999; text-align: right; }}
 </style>
 </head>
-<body>
+<body>{sections}</body>
+</html>
+"""
+
+SECTION_TEMPLATE = """
+<div class="sheet">
   <div class="header">
     <div class="logo-box">{academy_line1}<br>{academy_line2}</div>
     <div class="title-box">
@@ -195,8 +209,7 @@ body {{ font-family: "Noto Sans CJK KR", sans-serif; color: #1a1a1a; margin: 0; 
     <div class="col">{right_rows}</div>
   </div>
   <div class="footer">{academy_name}</div>
-</body>
-</html>
+</div>
 """
 
 
@@ -207,9 +220,10 @@ def split_academy_name(name: str):
     return name, ""
 
 
-def render_test_pdf(req: GenerateRequest) -> bytes:
-    words = [w.dict() for w in req.words]
-    if req.shuffle:
+def build_section(academy_name, book_title, unit_title, words, shuffle, direction) -> str:
+    """유닛 하나의 시험지 HTML 섹션(A4 한 장)을 만든다."""
+    words = [dict(w) for w in words]
+    if shuffle:
         random.shuffle(words)
         for i, w in enumerate(words, start=1):
             w["no"] = i
@@ -218,22 +232,43 @@ def render_test_pdf(req: GenerateRequest) -> bytes:
     left, right = words[:mid], words[mid:]
 
     def hint_of(w):
-        return w["word"] if req.direction == "eng_to_kor" else w["kor"]
+        return w["word"] if direction == "eng_to_kor" else w["kor"]
 
     left_html = "".join(ROW_TEMPLATE.format(no=w["no"], hint=hint_of(w)) for w in left)
     right_html = "".join(ROW_TEMPLATE.format(no=w["no"], hint=hint_of(w)) for w in right)
 
-    line1, line2 = split_academy_name(req.academy_name)
+    line1, line2 = split_academy_name(academy_name)
 
-    html = PAGE_TEMPLATE.format(
+    return SECTION_TEMPLATE.format(
         academy_line1=line1,
         academy_line2=line2,
-        book_title=req.book_title,
-        unit_title=req.unit_title,
+        book_title=book_title,
+        unit_title=unit_title,
         left_rows=left_html,
         right_rows=right_html,
-        academy_name=req.academy_name,
+        academy_name=academy_name,
     )
+
+
+def render_test_pdf(req: GenerateRequest) -> bytes:
+    section = build_section(
+        req.academy_name, req.book_title, req.unit_title,
+        [w.dict() for w in req.words], req.shuffle, req.direction,
+    )
+    html = DOC_TEMPLATE.format(sections=section)
+    return HTML(string=html).write_pdf()
+
+
+def render_all_pdf(req: "GenerateAllRequest") -> bytes:
+    """책 전체: 유닛마다 새 페이지로 시험지를 이어붙여 하나의 PDF로."""
+    sections = "".join(
+        build_section(
+            req.academy_name, req.book_title, u.unit_title,
+            [w.dict() for w in u.words], req.shuffle, req.direction,
+        )
+        for u in req.units
+    )
+    html = DOC_TEMPLATE.format(sections=sections)
     return HTML(string=html).write_pdf()
 
 
@@ -270,6 +305,18 @@ async def api_generate(req: GenerateRequest):
         io.BytesIO(pdf_bytes),
         media_type="application/pdf",
         headers={"Content-Disposition": "attachment; filename=vocab_test.pdf"},
+    )
+
+
+@app.post("/api/generate-all")
+async def api_generate_all(req: GenerateAllRequest):
+    if not req.units:
+        raise HTTPException(status_code=400, detail="유닛이 없습니다.")
+    pdf_bytes = render_all_pdf(req)
+    return StreamingResponse(
+        io.BytesIO(pdf_bytes),
+        media_type="application/pdf",
+        headers={"Content-Disposition": "attachment; filename=vocab_test_all.pdf"},
     )
 
 
