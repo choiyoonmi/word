@@ -234,17 +234,20 @@ def split_academy_name(name: str):
 
 def fit_metrics(n_words: int):
     """단어 수에 맞춰 한 유닛이 A4 한 장에 들어가도록 줄높이/글자/답란높이를 계산.
-    2단 배치라 한 단(칼럼)의 줄 수 = ceil(n/2). 헤더를 뺀 세로 예산 안에 맞춘다.
-    단어가 적으면 기본 크기(18.5mm/13pt), 많아질수록 자동 축소(최소 6.5mm/8pt).
+    2단 배치라 한 단(칼럼)의 줄 수 = ceil(n/2).
+    A4(297mm) - @page여백(28) - 헤더/여백(~34) - 푸터(~6) 를 빼면 본문 예산 ~215mm.
+    각 줄은 min-height(rowh) + padding-bottom(1.5) 만큼 차지하므로 그것까지 반영한다.
+    단어가 적으면 기본 크기(18.5mm/13pt), 많아질수록 자동 축소(최소 6mm/8pt).
     """
     rows_per_col = max(1, (n_words + 1) // 2)
-    budget_mm = 235.0  # 헤더 제외, 한 칼럼에 쓸 수 있는 세로 높이(A4 기준 여유값)
-    rowh = min(18.5, budget_mm / rows_per_col)
-    rowh = max(6.5, rowh)
-    # 글자 크기: rowh 18.5mm→13pt, 6.5mm→8pt 사이 선형 보간
-    fs = 8.0 + (rowh - 6.5) / (18.5 - 6.5) * (13.0 - 8.0)
+    ROW_PAD = 1.5       # .row padding-bottom (실제 줄 높이 = rowh + ROW_PAD)
+    budget_mm = 215.0   # 본문(한 칼럼)이 헤더/푸터와 함께 한 장에 들어가는 안전 높이
+    rowh = min(18.5, budget_mm / rows_per_col - ROW_PAD)
+    rowh = max(6.0, rowh)
+    # 글자 크기: rowh 18.5mm→13pt, 6mm→8pt 사이 선형 보간
+    fs = 8.0 + (rowh - 6.0) / (18.5 - 6.0) * (13.0 - 8.0)
     fs = max(8.0, min(13.0, fs))
-    ansh = max(4.0, rowh - 5.5)  # 답 쓰는 줄 높이
+    ansh = max(3.5, rowh - 5.0)  # 답 쓰는 줄 높이 (rowh 이하로 유지)
     return round(rowh, 1), round(fs, 1), round(ansh, 1)
 
 
