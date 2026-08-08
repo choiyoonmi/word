@@ -187,12 +187,12 @@ DOC_TEMPLATE = """
 @page {{ size: A4; margin: 14mm 12mm; }}
 body {{ font-family: "Noto Sans CJK KR", sans-serif; color: #1a1a1a; margin: 0; }}
 .sheet + .sheet {{ page-break-before: always; }}
-.header {{ display: flex; align-items: center; border: 1.5pt solid #1a1a1a; margin-bottom: 8mm; }}
-.logo-box {{ width: 30mm; padding: 4mm; text-align: center; font-size: 9.5pt; font-weight: 600; color: #333; line-height: 1.3; border-right: 1.5pt solid #1a1a1a; }}
-.title-box {{ flex: 1; padding: 4mm 5mm; }}
-.title-box .book {{ font-size: 10pt; color: #555; }}
-.title-box .unit {{ font-size: 15pt; font-weight: 700; margin-top: 1.5mm; }}
-.name-box {{ width: 50mm; padding: 4mm 5mm; border-left: 1.5pt solid #1a1a1a; font-size: 11pt; }}
+.header {{ display: flex; align-items: center; border: 1.5pt solid #1a1a1a; margin-bottom: var(--hmb, 8mm); }}
+.logo-box {{ width: 30mm; padding: var(--hpad, 4mm); text-align: center; font-size: var(--hlogo, 9.5pt); font-weight: 600; color: #333; line-height: 1.3; border-right: 1.5pt solid #1a1a1a; }}
+.title-box {{ flex: 1; padding: var(--hpad, 4mm) 5mm; }}
+.title-box .book {{ font-size: var(--hbook, 10pt); color: #555; }}
+.title-box .unit {{ font-size: var(--hunit, 15pt); font-weight: 700; margin-top: 1.5mm; }}
+.name-box {{ width: 50mm; padding: var(--hpad, 4mm) 5mm; border-left: 1.5pt solid #1a1a1a; font-size: var(--hname, 11pt); }}
 .columns {{ display: flex; gap: 12mm; }}
 .col {{ flex: 1; }}
 .row {{ display: flex; align-items: flex-end; min-height: var(--rowh, 18.5mm); padding-bottom: 1.5mm; }}
@@ -207,7 +207,7 @@ body {{ font-family: "Noto Sans CJK KR", sans-serif; color: #1a1a1a; margin: 0; 
 """
 
 SECTION_TEMPLATE = """
-<div class="sheet" style="--rowh: {rowh}mm; --fs: {fs}pt; --ansh: {ansh}mm;">
+<div class="sheet" style="--rowh: {rowh}mm; --fs: {fs}pt; --ansh: {ansh}mm; --hpad: {hpad}mm; --hlogo: {hlogo}pt; --hbook: {hbook}pt; --hunit: {hunit}pt; --hname: {hname}pt; --hmb: {hmb}mm;">
   <div class="header">
     <div class="logo-box">{academy_line1}<br>{academy_line2}</div>
     <div class="title-box">
@@ -233,22 +233,38 @@ def split_academy_name(name: str):
 
 
 def fit_metrics(n_words: int):
-    """단어 수에 맞춰 한 유닛이 A4 한 장에 들어가도록 줄높이/글자/답란높이를 계산.
-    2단 배치라 한 단(칼럼)의 줄 수 = ceil(n/2).
-    A4(297mm) - @page여백(28) - 헤더/여백(~34) - 푸터(~6) 를 빼면 본문 예산 ~215mm.
-    각 줄은 min-height(rowh) + padding-bottom(1.5) 만큼 차지하므로 그것까지 반영한다.
-    단어가 적으면 기본 크기(18.5mm/13pt), 많아질수록 자동 축소(최소 6mm/8pt).
+    """단어 수에 맞춰 한 유닛이 A4 한 장에 들어가도록 헤더/줄높이/글자를 계산.
+    단어가 많은 유닛은 헤더도 3단계로 축소해 본문에 세로 공간을 더 준다.
+    2단 배치라 한 단(칼럼)의 줄 수 = ceil(n/2). 각 줄 실제높이 = rowh + padding(1.5).
+    반환: dict (본문 + 헤더 치수). 값은 mm/pt.
     """
     rows_per_col = max(1, (n_words + 1) // 2)
-    ROW_PAD = 1.5       # .row padding-bottom (실제 줄 높이 = rowh + ROW_PAD)
-    budget_mm = 215.0   # 본문(한 칼럼)이 헤더/푸터와 함께 한 장에 들어가는 안전 높이
-    rowh = min(18.5, budget_mm / rows_per_col - ROW_PAD)
+    ROW_PAD = 1.5
+    TOTAL = 269.0     # A4 297 - @page 위아래 여백 28
+    FOOTER = 6.0
+    SLACK = 14.0      # 안전 여유 (렌더링 오차/줄바꿈 대비)
+
+    # 헤더 티어: 단어가 많을수록 헤더를 작게. hfoot = 헤더 대략 높이(여백 포함) 추정.
+    if n_words <= 28:
+        hdr = dict(hpad=4.0, hlogo=9.5, hbook=10.0, hunit=15.0, hname=11.0, hmb=8.0)
+        hfoot = 34.0
+    elif n_words <= 44:
+        hdr = dict(hpad=2.5, hlogo=8.0, hbook=8.5, hunit=12.0, hname=9.5, hmb=5.0)
+        hfoot = 22.0
+    else:
+        hdr = dict(hpad=2.0, hlogo=7.0, hbook=7.5, hunit=10.5, hname=8.5, hmb=4.0)
+        hfoot = 17.0
+
+    budget = TOTAL - hfoot - FOOTER - SLACK   # 본문(한 칼럼) 세로 예산
+    rowh = min(18.5, budget / rows_per_col - ROW_PAD)
     rowh = max(6.0, rowh)
-    # 글자 크기: rowh 18.5mm→13pt, 6mm→8pt 사이 선형 보간
     fs = 8.0 + (rowh - 6.0) / (18.5 - 6.0) * (13.0 - 8.0)
     fs = max(8.0, min(13.0, fs))
-    ansh = max(3.5, rowh - 5.0)  # 답 쓰는 줄 높이 (rowh 이하로 유지)
-    return round(rowh, 1), round(fs, 1), round(ansh, 1)
+    ansh = max(3.5, rowh - 5.0)
+
+    m = dict(rowh=round(rowh, 1), fs=round(fs, 1), ansh=round(ansh, 1))
+    m.update({k: round(v, 1) for k, v in hdr.items()})
+    return m
 
 
 def build_section(academy_name, book_title, unit_title, words, shuffle, direction) -> str:
@@ -269,12 +285,9 @@ def build_section(academy_name, book_title, unit_title, words, shuffle, directio
     right_html = "".join(ROW_TEMPLATE.format(no=w["no"], hint=hint_of(w)) for w in right)
 
     line1, line2 = split_academy_name(academy_name)
-    rowh, fs, ansh = fit_metrics(len(words))
+    m = fit_metrics(len(words))
 
     return SECTION_TEMPLATE.format(
-        rowh=rowh,
-        fs=fs,
-        ansh=ansh,
         academy_line1=line1,
         academy_line2=line2,
         book_title=book_title,
@@ -282,6 +295,7 @@ def build_section(academy_name, book_title, unit_title, words, shuffle, directio
         left_rows=left_html,
         right_rows=right_html,
         academy_name=academy_name,
+        **m,
     )
 
 
