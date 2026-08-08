@@ -8,6 +8,7 @@ from typing import List, Optional
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.responses import HTMLResponse, StreamingResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import pdfplumber
 from weasyprint import HTML
@@ -16,6 +17,17 @@ import io
 
 app = FastAPI(title="단어시험지 생성기")
 app.mount("/static", StaticFiles(directory="static"), name="static")
+
+# 낭독 녹음 앱(happytree-speech)에서 과제 단어로 시험지를 만들 수 있게 CORS 허용.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "https://happytree-speech.onrender.com",
+        "http://localhost:8000",
+    ],
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["*"],
+)
 
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY")
 
