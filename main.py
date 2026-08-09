@@ -3,6 +3,7 @@ import re
 import json
 import random
 import base64
+import asyncio
 from typing import List, Optional
 
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
@@ -14,6 +15,8 @@ import pdfplumber
 from weasyprint import HTML
 import anthropic
 import io
+
+from notify import send_telegram
 
 app = FastAPI(title="단어시험지 생성기")
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -34,6 +37,16 @@ ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY")
 
 @app.exception_handler(Exception)
 async def all_exceptions_handler(request, exc):
+    # 예상치 못한 서버 오류가 나면 원장님께 텔레그램으로 알림 (실패해도 응답엔 영향 없음)
+    try:
+        await asyncio.to_thread(
+            send_telegram,
+            "⚠️ <b>단어시험지 생성기 오류</b>\n"
+            f"경로: {request.url.path}\n"
+            f"내용: {str(exc)[:300]}",
+        )
+    except Exception:
+        pass
     return JSONResponse(status_code=500, content={"detail": f"서버 오류: {str(exc)}"})
 
 
